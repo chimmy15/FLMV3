@@ -1,0 +1,1176 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Fox Lake Masters - Score Tracker</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        // Optional Tailwind configuration
+        tailwind.config = {
+            theme: {
+                extend: {
+                    fontFamily: {
+                        // Set Inter as the default sans-serif font
+                        sans: ['Inter', 'sans-serif'],
+                        // Add Lucide font family
+                        lucide: ['LucideIcons', 'sans-serif'],
+                    },
+                    colors: {
+                        // Custom colors matching a golf theme
+                        launchBg: '#006747', // Pantone 342 C (Masters Green)
+                        launchButton: '#facc15', // yellow-400 (Masters Yellow)
+                        launchButtonHover: '#eab308', // yellow-500
+                        launchButtonText: '#006747', // Match launch bg for contrast
+                        leaderHighlight: '#f0fdf4', // green-50 (Subtle highlight for leader)
+                        mastersGreen: '#006747', // Explicit Masters Green
+                        mastersYellow: '#facc15', // Explicit Masters Yellow
+                    }
+                }
+            }
+        }
+    </script>
+    <style>
+        @font-face {
+            font-family: 'LucideIcons';
+            /* Updated CDN URL for better reliability */
+            src: url('https://cdn.jsdelivr.net/npm/lucide-static@latest/font/Lucide.ttf') format('truetype');
+            font-weight: normal;
+            font-style: normal;
+        }
+        /* Basic styles for input fields */
+        input[type="number"], input[type="text"] {
+            /* Apply border, rounded corners, and padding */
+            border: 1px solid #ccc; border-radius: 0.25rem; padding: 0.25rem 0.5rem;
+        }
+        /* Specific style for score input fields */
+        input[type="number"].score-input { width: 4em; text-align: center; }
+        /* Hide number input spinners for Webkit browsers */
+        input[type=number]::-webkit-inner-spin-button, input[type=number]::-webkit-outer-spin-button { -webkit-appearance: none; margin: 0; }
+        /* Hide number input spinners for Firefox */
+        input[type=number] { -moz-appearance: textfield; }
+
+        /* Style for active NAV button */
+        .nav-active { background-color: #eff6ff; color: #2563eb; } /* bg-blue-100 text-blue-700 */
+        /* Style for active ROUND tab */
+        .tab-active { border-color: #3b82f6; background-color: #eff6ff; color: #2563eb; font-weight: 600; } /* blue-500 border, blue-50 bg, blue-600 text */
+
+        /* Sticky header and player column styles for Score Table */
+        /* Ensure the container allows scrolling */
+        #score-table-container {
+             max-height: 60vh; /* Limit height to encourage scrolling */
+        }
+        /* Make the first column (player names) sticky */
+        #score-table-container th:first-child, #score-table-container td:first-child {
+             position: sticky;
+             left: 0;
+             z-index: 10; /* Ensure player name is above non-sticky cells */
+             background-color: inherit; /* Inherit background from parent (thead/tbody) */
+         }
+        /* Make the table header rows sticky */
+        #score-table-container thead th {
+             position: sticky;
+             top: 0;
+             z-index: 20; /* Ensure header is above player names */
+             background-color: #f3f4f6; /* bg-gray-100 - Match header background */
+         }
+        /* Adjust top position for second header row (Yards) */
+        #score-table-container thead tr:nth-child(2) th { top: 2.25rem; /* Approximate height of first header row */ }
+        /* Adjust top position for third header row (Par) */
+        #score-table-container thead tr:nth-child(3) th { top: 4.25rem; /* Approximate height of first two header rows */ }
+        /* Ensure the top-left corner header cell ('Player') is above all other sticky elements */
+        #score-table-container thead th:first-child { z-index: 30; }
+        /* Ensure sticky player name cells in the body have a solid background */
+        #score-table-container tbody td:first-child { background-color: #ffffff; /* bg-white */ }
+
+        /* Utility class to hide elements */
+        .hidden { display: none; }
+
+        /* Style for Lucide Icons */
+        .lucide-icon {
+            font-family: 'LucideIcons';
+            font-size: 1.1em; /* Adjust size as needed */
+            display: inline-block;
+            vertical-align: middle; /* Align icon better with text */
+            margin-right: 0.25em; /* Space between icon and text */
+            font-weight: normal; /* Ensure font-weight doesn't affect icon */
+            font-style: normal;
+            line-height: 1;
+            speak: none; /* For screen readers */
+            -webkit-font-smoothing: antialiased;
+            -moz-osx-font-smoothing: grayscale;
+        }
+        /* Icon for external links */
+        .lucide-icon-external-link {
+             font-size: 0.8em; /* Make external link icon slightly smaller */
+             margin-left: 0.3em;
+             opacity: 0.7;
+        }
+
+        /* Lucide Icon Content Mapping (Add more as needed) */
+        .lucide-icon.icon-sun::before { content: "\F045F"; } /* sun */
+        .lucide-icon.icon-cloud::before { content: "\F0176"; } /* cloud */
+        .lucide-icon.icon-cloud-sun::before { content: "\F017A"; } /* cloud-sun */
+        .lucide-icon.icon-cloud-rain::before { content: "\F0178"; } /* cloud-rain */
+        .lucide-icon.icon-cloud-snow::before { content: "\F0179"; } /* cloud-snow */
+        .lucide-icon.icon-snowflake::before { content: "\F0436"; } /* snowflake */
+        .lucide-icon.icon-moon::before { content: "\F035B"; } /* moon */
+        .lucide-icon.icon-thermometer::before { content: "\F048E"; } /* thermometer */
+        .lucide-icon.icon-calendar-days::before { content: "\F0117"; } /* calendar-days */
+        .lucide-icon.icon-image::before { content: "\F02A2"; } /* image */
+        .lucide-icon.icon-video::before { content: "\F04C2"; } /* video */
+        .lucide-icon.icon-film::before { content: "\F023A"; } /* film (alternative for video/gif) */
+        .lucide-icon.icon-external-link::before { content: "\F022A"; } /* external-link */
+
+
+    </style>
+</head>
+<body class="bg-gray-100 font-sans">
+
+    <div id="launch-screen" class="fixed inset-0 z-50 flex flex-col items-center justify-center bg-launchBg text-white p-8">
+        <img
+            src="https://i.imgur.com/eIfvage.jpeg" alt="Fox Lake Masters Logo"
+            class="max-w-xs sm:max-w-sm md:max-w-md mb-8 rounded-lg shadow-lg"
+            onerror="this.onerror=null; this.src='https://placehold.co/300x150/006747/FFF?text=Logo+Error'; this.alt='Logo Error';"
+        />
+        <button id="start-button" class="bg-launchButton hover:bg-launchButtonHover text-launchButtonText font-bold py-3 px-8 rounded-lg text-lg transition duration-150 ease-in-out shadow-md">
+            Welcome
+        </button>
+    </div>
+
+    <div id="main-app-area" class="hidden">
+        <nav id="navigation-bar" class="bg-white shadow-md mb-4 sm:mb-6 sticky top-0 z-40">
+            <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+                <div class="flex justify-center sm:justify-start items-center h-16">
+                    <div id="nav-buttons" class="flex space-x-4">
+                        </div>
+                </div>
+            </div>
+        </nav>
+
+        <div class="p-4 md:p-8">
+
+             <div id="home-view" class="hidden">
+                  <div class="max-w-7xl mx-auto">
+                      <h1 class="text-3xl sm:text-4xl font-bold text-center text-mastersGreen mb-4 pt-4">
+                          Welcome to the 2025 Fox Lake Masters
+                      </h1>
+                      <div class="text-center text-gray-700 text-sm mb-6 flex justify-center items-center flex-wrap gap-x-3 gap-y-2">
+                          <span class="inline-flex items-center bg-gray-200 px-2 py-1 rounded">
+                              <i class="lucide-icon icon-calendar-days text-gray-600"></i>
+                              <span id="current-date">Loading date...</span>
+                          </span>
+                          <span class="text-gray-400 hidden sm:inline">|</span>
+                          <span class="inline-flex items-center bg-gray-200 px-2 py-1 rounded">
+                              <i id="current-weather-icon" class="lucide-icon text-gray-600"></i>
+                              <span id="current-weather-info">Fox Lake, WI: Loading weather...</span>
+                          </span>
+                      </div>
+                      <div class="text-center mb-8">
+                          <p class="text-lg font-semibold text-gray-800 mb-2">
+                              Current Champion: <span class="text-mastersGreen">Ben Lippert</span>
+                          </p>
+                          <img
+                              src="https://i.imgur.com/yq7sN4B.jpeg" alt="Current Champion Ben Lippert"
+                              class="w-32 h-32 rounded-full mx-auto shadow-md border-2 border-mastersYellow object-cover"
+                              onerror="this.onerror=null; this.src='https://placehold.co/128x128/eeeeee/999999?text=Champ'; this.alt='Champion Image Error';"
+                          />
+                      </div>
+                      <div class="bg-white rounded-lg shadow-md p-6">
+                          <h2 class="text-2xl font-semibold text-mastersGreen mb-4 border-b border-gray-200 pb-2">Live Leaderboard</h2>
+                          <p class="text-sm text-gray-500 mb-4">Sorted by Net Score</p>
+                          <div id="leaderboard" class="overflow-x-auto"></div>
+                          <p id="course-par-info" class="text-sm text-gray-600 mt-4 pt-2 border-t border-gray-200"></p>
+                      </div>
+                  </div>
+             </div>
+
+            <div id="tracker-view" class="hidden">
+                <div class="max-w-7xl mx-auto">
+                    <div class="flex items-center justify-center mb-6 pt-4">
+                        <img src="https://i.imgur.com/9tPiAv5.png" alt="Fox Lake Masters Alternate Logo" class="h-16 sm:h-24 w-auto mr-3 rounded-lg hidden sm:inline-block" onerror="this.onerror=null; this.src='https://placehold.co/128x128/eeeeee/999999?text=Logo'; this.alt='Logo Error';"/>
+                        <h1 class="text-xl sm:text-2xl font-bold text-center text-gray-800">
+                            Live scoring sponsored by Miller High Life and Jared from Subway - Eat Fresh!
+                        </h1>
+                        <img src="https://i.imgur.com/K2Piqqd.png" alt="Fox Lake Logo Graphic" class="h-16 sm:h-24 w-auto ml-3 rounded-lg hidden sm:inline-block" onerror="this.onerror=null; this.src='https://placehold.co/128x128/eeeeee/999999?text=Logo'; this.alt='Logo Error';"/>
+                    </div>
+                    <div class="mb-6 p-4 border border-gray-200 rounded-lg bg-white shadow-sm">
+                        <h2 class="text-xl font-semibold text-gray-700 mb-3">Players</h2>
+                        <div id="player-list" class="flex flex-wrap gap-2 mb-3"></div>
+                        <div class="flex flex-col sm:flex-row gap-2">
+                            <input type="text" id="new-player-name" placeholder="Player name" class="flex-grow p-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"/>
+                            <input type="number" id="new-player-handicap" placeholder="Handicap (0)" class="p-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 w-full sm:w-32"/>
+                            <button id="add-player-btn" class="bg-blue-500 hover:bg-blue-600 text-white font-semibold py-2 px-4 rounded-md transition duration-150 ease-in-out">Add Player</button>
+                        </div>
+                        <p class="text-xs text-gray-500 mt-2">Note: Player data is stored locally in this browser.</p>
+                    </div>
+                    <div class="mb-6">
+                        <div class="border-b border-gray-200">
+                            <nav id="round-tabs" class="-mb-px flex space-x-2 sm:space-x-4 overflow-x-auto" aria-label="Tabs"></nav>
+                        </div>
+                    </div>
+                    <div class="mb-6 p-4 border border-gray-200 rounded-lg bg-white shadow-sm">
+                         <h2 class="text-xl font-semibold text-gray-700 mb-4">Enter Scores - <span id="current-round-display">Round 1</span></h2>
+                         <div id="score-table-container" class="overflow-x-auto relative"></div>
+                    </div>
+                </div>
+            </div>
+
+            <div id="history-view" class="hidden">
+                 <div class="mb-6 p-4 border border-gray-200 rounded-lg bg-white shadow-sm">
+                     <h2 class="text-xl font-semibold text-gray-700 mb-3">History</h2>
+                     <div id="history-content" class="aspect-video w-full"></div>
+                     <p class="text-xs text-gray-500 mt-2">
+                         Note: The embedded sheet above must be published to the web via Google Sheets
+                         (File &gt; Share &gt; Publish to web) to be visible.
+                     </p>
+                 </div>
+            </div>
+
+            <div id="media-view" class="hidden">
+                <div class="max-w-7xl mx-auto">
+                    <h1 class="text-2xl sm:text-3xl font-bold text-center text-mastersGreen mb-6 pt-4">
+                        2023/2024 Media Coverage
+                    </h1>
+
+                    <div class="mb-8 p-6 bg-white rounded-lg shadow-md">
+                        <h2 class="text-xl font-semibold text-gray-700 mb-4 border-b pb-2">
+                           <i class="lucide-icon icon-image text-gray-500"></i> Images
+                        </h2>
+                        <div class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4">
+                            <a href="https://i.imgur.com/NZvwzil.jpeg" target="_blank" rel="noopener noreferrer" class="block hover:opacity-80 transition-opacity duration-150">
+                                <img src="https://i.imgur.com/NZvwzil.jpeg"
+                                     alt="Media Image 1"
+                                     class="rounded-lg shadow-md aspect-video object-cover w-full"
+                                     onerror="this.onerror=null; this.src='https://placehold.co/600x400/cccccc/999999?text=Image+Error'; this.alt='Image Error';"/>
+                            </a>
+                             <a href="https://i.imgur.com/brhCLul.jpeg" target="_blank" rel="noopener noreferrer" class="block hover:opacity-80 transition-opacity duration-150">
+                                <img src="https://i.imgur.com/brhCLul.jpeg"
+                                     alt="Media Image 2"
+                                     class="rounded-lg shadow-md aspect-video object-cover w-full"
+                                     onerror="this.onerror=null; this.src='https://placehold.co/600x400/cccccc/999999?text=Image+Error'; this.alt='Image Error';"/>
+                             </a>
+                             <div class="rounded-lg shadow-md aspect-video bg-gray-100 flex items-center justify-center">
+                                 <span class="text-gray-400">More Images...</span>
+                             </div>
+                        </div>
+                    </div>
+
+                    <div class="p-6 bg-white rounded-lg shadow-md">
+                        <h2 class="text-xl font-semibold text-gray-700 mb-4 border-b pb-2">
+                           <i class="lucide-icon icon-film text-gray-500"></i> Videos / Clips
+                           <span class="text-sm font-normal text-gray-500">(Links to Imgur)</span>
+                           <i class="lucide-icon icon-external-link lucide-icon-external-link"></i>
+                        </h2>
+                        <div class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4">
+                             <a href="https://imgur.com/TKsW3qe" target="_blank" rel="noopener noreferrer" class="block hover:opacity-80 transition-opacity duration-150">
+                                 <img src="https://i.imgur.com/TKsW3qe.gif"
+                                      alt="Media Clip 1"
+                                      class="rounded-lg shadow-md aspect-video object-cover w-full"
+                                      onerror="this.onerror=null; this.src='https://placehold.co/600x400/cccccc/999999?text=Clip+Error'; this.alt='Clip Error';"/>
+                             </a>
+                              <a href="https://imgur.com/NuVeadP" target="_blank" rel="noopener noreferrer" class="block hover:opacity-80 transition-opacity duration-150">
+                                 <img src="https://i.imgur.com/NuVeadP.gif"
+                                      alt="Media Clip 2"
+                                      class="rounded-lg shadow-md aspect-video object-cover w-full"
+                                      onerror="this.onerror=null; this.src='https://placehold.co/600x400/cccccc/999999?text=Clip+Error'; this.alt='Clip Error';"/>
+                              </a>
+                              <a href="https://imgur.com/PsIyphW" target="_blank" rel="noopener noreferrer" class="block hover:opacity-80 transition-opacity duration-150">
+                                 <img src="https://i.imgur.com/PsIyphW.gif"
+                                      alt="Media Clip 3"
+                                      class="rounded-lg shadow-md aspect-video object-cover w-full"
+                                      onerror="this.onerror=null; this.src='https://placehold.co/600x400/cccccc/999999?text=Clip+Error'; this.alt='Clip Error';"/>
+                              </a>
+                              <a href="https://imgur.com/uvI4jsc" target="_blank" rel="noopener noreferrer" class="block hover:opacity-80 transition-opacity duration-150">
+                                 <img src="https://i.imgur.com/uvI4jsc.gif"
+                                      alt="Media Clip 4"
+                                      class="rounded-lg shadow-md aspect-video object-cover w-full"
+                                      onerror="this.onerror=null; this.src='https://placehold.co/600x400/cccccc/999999?text=Clip+Error'; this.alt='Clip Error';"/>
+                              </a>
+                              <a href="https://imgur.com/tUflJHP" target="_blank" rel="noopener noreferrer" class="block hover:opacity-80 transition-opacity duration-150">
+                                 <img src="https://i.imgur.com/tUflJHP.gif"
+                                      alt="Media Clip 5"
+                                      class="rounded-lg shadow-md aspect-video object-cover w-full"
+                                      onerror="this.onerror=null; this.src='https://placehold.co/600x400/cccccc/999999?text=Clip+Error'; this.alt='Clip Error';"/>
+                              </a>
+                              <a href="https://imgur.com/mnPNOqR" target="_blank" rel="noopener noreferrer" class="block hover:opacity-80 transition-opacity duration-150">
+                                 <img src="https://i.imgur.com/mnPNOqR.gif"
+                                      alt="Media Clip 6"
+                                      class="rounded-lg shadow-md aspect-video object-cover w-full"
+                                      onerror="this.onerror=null; this.src='https://placehold.co/600x400/cccccc/999999?text=Clip+Error'; this.alt='Clip Error';"/>
+                              </a>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+        </div> </div> <script>
+    // --- Constants ---
+    const NUM_ROUNDS = 4; // Number of rounds in the tournament
+    const NUM_HOLES = 18; // Number of holes per round
+    const LOCAL_STORAGE_KEY_PLAYERS = 'golfTrackerPlayers_FoxLakeMasters'; // Unique key for player data
+    const LOCAL_STORAGE_KEY_ID = 'golfTrackerNextPlayerId_FoxLakeMasters'; // Unique key for next player ID
+    // !!! IMPORTANT: Replace this URL with your actual published Google Sheet URL !!!
+    // Example URL (replace with your actual published sheet URL ending in /pubhtml)
+    const GOOGLE_SHEET_URL = "https://docs.google.com/spreadsheets/d/e/2PACX-1vTRW2wQZbEYgsKgYNwKofjhUWsSYQIY0Y5IDqYhk3aqw-bGfrX8Ct2zYk5heRLr3Tw7EPH2DdSPhK1h/pubhtml";
+
+    // --- Course Data (Fox Lake Golf Club) ---
+    // This data defines the par and yards for each hole.
+    const COURSE_DATA = [
+        { hole: 1, par: 4, yards: 370 }, { hole: 2, par: 4, yards: 336 }, { hole: 3, par: 5, yards: 512 },
+        { hole: 4, par: 3, yards: 164 }, { hole: 5, par: 5, yards: 511 }, { hole: 6, par: 3, yards: 178 },
+        { hole: 7, par: 4, yards: 367 }, { hole: 8, par: 4, yards: 338 }, { hole: 9, par: 4, yards: 326 },
+        { hole: 10, par: 3, yards: 180 }, { hole: 11, par: 4, yards: 398 }, { hole: 12, par: 4, yards: 469 },
+        { hole: 13, par: 4, yards: 306 }, { hole: 14, par: 4, yards: 430 }, { hole: 15, par: 5, yards: 544 },
+        { hole: 16, par: 3, yards: 202 }, { hole: 17, par: 4, yards: 394 }, { hole: 18, par: 5, yards: 516 }
+    ];
+    // Calculate the total par for the course once.
+    const COURSE_TOTAL_PAR = COURSE_DATA.reduce((sum, hole) => sum + hole.par, 0);
+
+    // --- Global State Variables ---
+    let players = []; // Array to hold player objects {id, name, handicap, scores: {round1: {hole1: 5, ...}, ...}}
+    let currentView = 'launch'; // Tracks the currently displayed view ('launch', 'home', 'tracker', 'history', 'media')
+    let currentRound = 1; // Tracks the currently selected round for score entry
+    let nextPlayerIdCounter = 1; // Counter to ensure unique player IDs
+
+    // --- DOM Element References --- (Assigned in initializeApp)
+    // These variables will hold references to the HTML elements for quicker access.
+    let launchScreenEl, mainAppAreaEl, navigationBarEl, navButtonsEl;
+    let homeViewEl, trackerViewEl, historyViewEl, mediaViewEl; // Added mediaViewEl
+    let playerListEl, newPlayerNameInputEl, newPlayerHandicapInputEl, addPlayerBtnEl;
+    let roundTabsEl, currentRoundDisplayEl, scoreTableContainerEl;
+    let leaderboardEl, courseParInfoEl, historyContentEl;
+    // New elements for Home view
+    let currentDateEl, currentWeatherInfoEl, currentWeatherIconEl;
+
+
+    // --- Helper Functions ---
+
+    /**
+     * Calculates the total score for a specific player in a specific round.
+     * @param {object} player - The player object.
+     * @param {number} roundNum - The round number (1-based).
+     * @returns {number} The total score for the round, or 0 if no scores entered.
+     */
+    const calculateRoundTotal = (player, roundNum) => {
+        const roundScores = player.scores?.[`round${roundNum}`];
+        if (!roundScores) return 0; // Return 0 if the round doesn't exist for the player
+        // Sum up all valid number scores for the holes in the round
+        return Object.values(roundScores).reduce((sum, score) => sum + (typeof score === 'number' ? score : 0), 0);
+    };
+
+    /**
+     * Calculates the cumulative gross total score for a player across all rounds.
+     * @param {object} player - The player object.
+     * @returns {number} The total gross score.
+     */
+    const calculateCumulativeGrossTotal = (player) => {
+        let total = 0;
+        for (let r = 1; r <= NUM_ROUNDS; r++) {
+            total += calculateRoundTotal(player, r);
+        }
+        return total;
+    };
+
+    /**
+     * Calculates the cumulative net total score for a player (Gross - Handicap).
+     * @param {object} player - The player object.
+     * @returns {number} The total net score.
+     */
+    const calculateCumulativeNetTotal = (player) => {
+        const grossTotal = calculateCumulativeGrossTotal(player);
+        // Ensure handicap is a number, default to 0 if not set or invalid
+        const handicap = typeof player.handicap === 'number' ? player.handicap : 0;
+        return grossTotal - handicap;
+    };
+
+    /**
+     * Calculates the player's cumulative score relative to par across all played holes.
+     * @param {object} player - The player object.
+     * @returns {number} The score relative to par (e.g., -2, 0, +5). Returns 0 if no holes played.
+     */
+    const calculateCumulativeRelativeToPar = (player) => {
+        let totalRelativeToPar = 0;
+        let holesPlayed = 0;
+        for (let r = 1; r <= NUM_ROUNDS; r++) {
+            const roundScores = player.scores?.[`round${r}`];
+            if (roundScores) {
+                for (let h = 1; h <= NUM_HOLES; h++) {
+                    const score = roundScores[`hole${h}`];
+                    // Check if a valid score exists for the hole
+                    if (typeof score === 'number' && score !== null) {
+                        holesPlayed++;
+                        const holePar = COURSE_DATA[h - 1]?.par; // Get par for the current hole (0-indexed)
+                        if (typeof holePar === 'number') {
+                            totalRelativeToPar += (score - holePar); // Add difference from par
+                        }
+                    }
+                }
+            }
+        }
+        return holesPlayed > 0 ? totalRelativeToPar : 0; // Return 0 if no holes have scores yet
+    };
+
+    /**
+     * Formats the score relative to par for display (e.g., E, +2, -1).
+     * @param {object} player - The player object (used to check if any scores exist).
+     * @param {number} scoreRelativeToPar - The calculated score relative to par.
+     * @returns {string} The formatted string ('--', 'E', '+X', '-X').
+     */
+    const formatRelativeToPar = (player, scoreRelativeToPar) => {
+        // Check if the player has entered *any* score yet
+        let hasScores = false;
+        for (let r = 1; r <= NUM_ROUNDS; r++) {
+            if (player.scores && player.scores[`round${r}`]) {
+                // Check if any value in the round's scores is a number
+                 if (Object.values(player.scores[`round${r}`]).some(s => typeof s === 'number' && s !== null)) {
+                    hasScores = true;
+                    break;
+                 }
+            }
+        }
+
+        if (!hasScores) return '--'; // Display '--' if no scores are entered at all
+        if (scoreRelativeToPar > 0) return `+${scoreRelativeToPar}`; // Positive score: +X
+        if (scoreRelativeToPar === 0) return 'E'; // Even par: E
+        return `${scoreRelativeToPar}`; // Negative score: -X (already has minus sign)
+    };
+
+
+    // --- Persistence Functions ---
+
+    /**
+     * Saves the current state (players array and nextPlayerIdCounter) to localStorage.
+     */
+    function saveState() {
+        try {
+            localStorage.setItem(LOCAL_STORAGE_KEY_PLAYERS, JSON.stringify(players));
+            localStorage.setItem(LOCAL_STORAGE_KEY_ID, nextPlayerIdCounter.toString());
+        } catch (error) {
+            console.error("Error saving state to localStorage:", error);
+            // Optionally notify the user that data might not be saved
+        }
+    }
+
+    /**
+     * Loads the state (players array and nextPlayerIdCounter) from localStorage.
+     * Includes basic validation and type correction.
+     */
+    function loadState() {
+         try {
+             // Load player data
+             const savedPlayers = localStorage.getItem(LOCAL_STORAGE_KEY_PLAYERS);
+             if (savedPlayers) {
+                 const parsed = JSON.parse(savedPlayers);
+                 // Basic validation: check if it's an array of objects with id and name
+                 if (Array.isArray(parsed) && parsed.every(p => typeof p === 'object' && p !== null && 'id' in p && 'name' in p)) {
+                     players = parsed;
+                     // Ensure scores object exists and handicap is a number
+                     players.forEach(p => {
+                         if (!p.scores) p.scores = {}; // Initialize scores if missing
+                         // Convert string handicap from older versions or ensure it's a number
+                         if (typeof p.handicap === 'string') {
+                             p.handicap = parseInt(p.handicap, 10);
+                             if (isNaN(p.handicap)) p.handicap = 0; // Default to 0 if parsing fails
+                         } else if (typeof p.handicap !== 'number') {
+                             p.handicap = 0; // Default to 0 if not a number
+                         }
+                     });
+                 } else {
+                     console.warn("Invalid player data found in localStorage. Resetting.");
+                     players = []; // Reset if data is corrupt
+                 }
+             } else {
+                 players = []; // Initialize if no data found
+             }
+
+             // Load the next player ID counter
+             const savedId = localStorage.getItem(LOCAL_STORAGE_KEY_ID);
+             const parsedId = savedId ? parseInt(savedId, 10) : NaN;
+             if (!isNaN(parsedId) && parsedId >= 1) {
+                 nextPlayerIdCounter = parsedId;
+             } else if (players.length > 0) {
+                 // Fallback: Calculate next ID based on existing players if saved ID is invalid
+                 nextPlayerIdCounter = Math.max(...players.map(p => p.id), 0) + 1;
+             } else {
+                 nextPlayerIdCounter = 1; // Default if no players and no valid saved ID
+             }
+         } catch (error) {
+             console.error("Error loading state from localStorage:", error);
+             // Reset state in case of loading errors
+             players = [];
+             nextPlayerIdCounter = 1;
+         }
+     }
+
+
+    // --- Navigation ---
+
+    /**
+     * Handles switching between different views (Launch, Home, Scores, History, Media).
+     * Updates the visibility of view containers and triggers necessary rendering functions.
+     * @param {string} view - The view to navigate to ('launch', 'home', 'tracker', 'history', 'media').
+     */
+    function navigateTo(view) {
+        currentView = view;
+
+        // Ensure all required elements exist before proceeding
+        // Added mediaViewEl check
+        if (!mainAppAreaEl || !launchScreenEl || !homeViewEl || !trackerViewEl || !historyViewEl || !mediaViewEl || !navButtonsEl) {
+            console.error("Navigation failed: One or more essential view elements not found in the DOM.");
+            return;
+        }
+
+        // Hide all main views first
+        homeViewEl.classList.add('hidden');
+        trackerViewEl.classList.add('hidden'); // This is the "Scores" view now
+        historyViewEl.classList.add('hidden');
+        mediaViewEl.classList.add('hidden'); // Hide media view
+
+        // Handle launch screen vs main app area visibility
+        if (view === 'launch') {
+            mainAppAreaEl.classList.add('hidden');
+            launchScreenEl.classList.remove('hidden');
+        } else {
+            // Show main app area, hide launch screen
+            launchScreenEl.classList.add('hidden');
+            mainAppAreaEl.classList.remove('hidden');
+
+            // Show the specific view and render its content
+            if (view === 'home') {
+                homeViewEl.classList.remove('hidden');
+                displayCurrentDate();
+                displaySimulatedWeather();
+                renderLeaderboard();
+            } else if (view === 'tracker') { // 'tracker' ID still used for Scores view
+                trackerViewEl.classList.remove('hidden');
+                renderPlayerList();
+                renderRoundTabs();
+                renderScoreTable();
+            } else if (view === 'history') {
+                historyViewEl.classList.remove('hidden');
+                renderHistoryView();
+            } else if (view === 'media') { // Handle new media view
+                mediaViewEl.classList.remove('hidden');
+                // No specific rendering needed for now as content is static placeholders
+            }
+
+            // Always update navigation buttons when in the main app area
+            renderNavButtons();
+        }
+    }
+
+    // --- Rendering Functions ---
+
+    /**
+     * Displays the current date in the designated element on the Home view.
+     */
+    function displayCurrentDate() {
+        if (!currentDateEl) {
+            console.warn("Date element not found.");
+            return;
+        }
+        const now = new Date();
+        const options = { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' };
+        currentDateEl.textContent = now.toLocaleDateString('en-US', options);
+    }
+
+    /**
+     * Displays simulated weather information (in Fahrenheit) and an icon on the Home view.
+     * NOTE: This function currently uses SIMULATED data because implementing live weather
+     * requires securely handling an API key, which cannot be done directly in client-side code.
+     */
+    function displaySimulatedWeather() {
+        if (!currentWeatherInfoEl || !currentWeatherIconEl) {
+            console.warn("Weather elements not found.");
+            return;
+        }
+
+        // --- Simulation Logic (Fahrenheit) ---
+        const hour = new Date().getHours();
+        let tempF = 35 + Math.floor(Math.random() * 30);
+        let condition = "Cloudy";
+        let iconClass = "icon-cloud";
+
+        if (hour >= 7 && hour < 18) { // Daytime
+             const rand = Math.random();
+             if (rand < 0.3) { condition = "Sunny"; iconClass = "icon-sun"; tempF += 10; }
+             else if (rand < 0.6) { condition = "Partly Cloudy"; iconClass = "icon-cloud-sun"; tempF += 5;}
+             else if (rand < 0.8) { condition = "Rain"; iconClass = "icon-cloud-rain"; tempF -=5; }
+             else { condition = "Cloudy"; iconClass = "icon-cloud"; }
+        } else { // Nighttime
+             const rand = Math.random();
+             if (rand < 0.6) { condition = "Clear"; iconClass = "icon-moon"; tempF -=5;}
+             else { condition = "Cloudy"; iconClass = "icon-cloud"; }
+        }
+        if (tempF <= 35 && (condition === "Rain" || condition === "Cloudy")) {
+            condition = "Snow"; iconClass = "icon-cloud-snow";
+        } else if (tempF <= 32) {
+             condition = "Freezing"; iconClass = "icon-snowflake";
+        }
+
+        // --- Update DOM ---
+        currentWeatherInfoEl.textContent = `Fox Lake, WI: ${tempF}°F, ${condition}`;
+        currentWeatherIconEl.className = 'lucide-icon text-gray-600';
+        currentWeatherIconEl.classList.add(iconClass);
+
+        // --- Developer Note for Live Weather Implementation ---
+        // See previous version's comments for details on secure implementation.
+    }
+
+
+    /**
+     * Renders the navigation buttons (Home, Scores, History, Media) and highlights the active view.
+     */
+    function renderNavButtons() {
+        if (!navButtonsEl) return; // Don't proceed if the element doesn't exist
+
+        const navItems = [
+            { view: 'home', label: 'Home' },
+            { view: 'tracker', label: 'Scores' }, // 'tracker' is the ID for the Scores view
+            { view: 'media', label: 'Media' },    // Added Media tab
+            { view: 'history', label: 'History' },
+        ];
+
+        // Generate HTML for each navigation button
+        navButtonsEl.innerHTML = navItems.map(item => `
+            <button data-view="${item.view}"
+                    class="nav-button px-3 py-2 rounded-md text-sm font-medium transition duration-150 ease-in-out ${
+                        currentView === item.view
+                            ? 'nav-active' // Apply active style if it's the current view
+                            : 'text-gray-700 hover:bg-gray-100 hover:text-gray-900' // Default styles
+                    }"
+            >${item.label}</button>
+        `).join('');
+
+        // Add event listeners to the newly created buttons
+        navButtonsEl.querySelectorAll('.nav-button').forEach(button => {
+            button.addEventListener('click', (e) => navigateTo(e.target.dataset.view));
+        });
+    }
+
+    /**
+     * Renders the list of players with their handicaps and remove buttons.
+     */
+    function renderPlayerList() {
+         if (!playerListEl) return; // Safety check
+
+         if (players.length === 0) {
+             playerListEl.innerHTML = '<p class="text-gray-500 italic">No players added yet.</p>';
+             return;
+         }
+
+         // Generate HTML for each player badge
+         playerListEl.innerHTML = players.map(player => `
+             <span class="bg-blue-100 text-blue-800 text-sm font-medium px-2.5 py-1 rounded-md inline-flex items-center shadow-sm">
+                 ${player.name} (HCP: ${player.handicap ?? 0}) <button data-player-id="${player.id}" class="remove-player-btn ml-1.5 text-blue-600 hover:text-blue-900 font-bold focus:outline-none" aria-label="Remove ${player.name}">&times;</button>
+             </span>
+         `).join('');
+
+         // Add event listeners to the remove buttons
+         playerListEl.querySelectorAll('.remove-player-btn').forEach(button => {
+             button.addEventListener('click', handleRemovePlayer);
+         });
+     }
+
+    /**
+     * Renders the round selection tabs and highlights the active round.
+     */
+    function renderRoundTabs() {
+         if (!roundTabsEl || !currentRoundDisplayEl) return; // Safety check
+
+         let tabsHtml = '';
+         // Generate HTML for each round tab
+         for (let r = 1; r <= NUM_ROUNDS; r++) {
+             tabsHtml += `
+                 <button data-round="${r}" class="round-tab-btn whitespace-nowrap px-3 py-2 font-medium text-sm rounded-t-md border-b-2 transition duration-150 ease-in-out ${
+                     r === currentRound
+                         ? 'tab-active' // Apply active style if it's the current round
+                         : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300' // Default styles
+                 }">
+                     Round ${r}
+                 </button>
+             `;
+         }
+         roundTabsEl.innerHTML = tabsHtml;
+
+         // Update the display showing the current round number
+         currentRoundDisplayEl.textContent = `Round ${currentRound}`;
+
+         // Add event listeners to the round tabs
+         roundTabsEl.querySelectorAll('.round-tab-btn').forEach(button => {
+             button.addEventListener('click', handleRoundChange);
+         });
+     }
+
+    /**
+     * Renders the main score entry table for the currently selected round.
+     * Includes sticky headers (Hole #, Yards, Par) and a sticky player name column.
+     */
+    function renderScoreTable() {
+         if (!scoreTableContainerEl) return; // Safety check
+
+         // Display a message if no players have been added
+         if (players.length === 0) {
+              scoreTableContainerEl.innerHTML = '<p class="text-gray-500 italic">Add players to start entering scores.</p>';
+              return;
+         }
+
+         // Start building the table HTML
+         let tableHtml = '<table class="min-w-full divide-y divide-gray-200 border border-gray-300 shadow-sm">';
+
+         // Table Header (Hole #, Yards, Par) - uses sticky positioning defined in CSS
+         tableHtml += '<thead class="text-xs font-medium text-gray-600 uppercase tracking-wider">';
+         // Row 1: Hole Numbers
+         tableHtml += '<tr class="text-left">';
+         tableHtml += '<th scope="col" class="px-3 py-2 sticky left-0 z-30 font-semibold bg-gray-100">Player</th>'; // Top-left corner
+         for (let h = 1; h <= NUM_HOLES; h++) { tableHtml += `<th scope="col" class="px-2 py-2 text-center w-16">H${h}</th>`; }
+         tableHtml += '<th scope="col" class="px-3 py-2 text-center font-semibold">Round Total</th>';
+         tableHtml += '</tr>';
+         // Row 2: Yards
+         tableHtml += '<tr class="text-left">';
+         tableHtml += '<th scope="col" class="px-3 py-1 sticky left-0 z-30 text-gray-500 font-normal bg-gray-100">Yards</th>';
+         COURSE_DATA.forEach(hole => { tableHtml += `<th scope="col" class="px-2 py-1 text-center font-normal text-gray-500">${hole.yards}</th>`; });
+         tableHtml += '<th scope="col" class="px-3 py-1 text-center font-normal text-gray-400"></th>'; // Empty cell for total column
+         tableHtml += '</tr>';
+         // Row 3: Par
+         tableHtml += '<tr class="text-left">';
+         tableHtml += '<th scope="col" class="px-3 py-1 sticky left-0 z-30 font-semibold bg-gray-100">Par</th>';
+         COURSE_DATA.forEach(hole => { tableHtml += `<th scope="col" class="px-2 py-1 text-center font-semibold">${hole.par}</th>`; });
+         tableHtml += `<th scope="col" class="px-3 py-1 text-center font-bold">${COURSE_TOTAL_PAR}</th>`; // Display total course par
+         tableHtml += '</tr>';
+         tableHtml += '</thead>';
+
+         // Table Body (Player Rows)
+         tableHtml += '<tbody class="bg-white divide-y divide-gray-200">';
+         players.forEach(player => {
+             // Player name cell (sticky)
+             tableHtml += `<tr><td class="font-medium text-gray-900 sticky left-0 z-10 px-3 py-2 whitespace-nowrap bg-white">${player.name}</td>`;
+             const roundKey = `round${currentRound}`;
+             // Score input cells for each hole
+             for (let h = 1; h <= NUM_HOLES; h++) {
+                 const holeKey = `hole${h}`;
+                 // Get the score, default to empty string if not found
+                 const score = player.scores?.[roundKey]?.[holeKey] ?? '';
+                 tableHtml += `<td class="px-1 py-1 text-center"><input type="number" min="1" value="${score}" data-player-id="${player.id}" data-round="${currentRound}" data-hole="${h}" class="score-input w-12 text-sm text-center border border-gray-300 rounded-md focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-300"></td>`;
+             }
+             // Round total cell
+             const roundTotal = calculateRoundTotal(player, currentRound);
+             tableHtml += `<td class="text-center font-semibold px-3 py-2">${roundTotal || '--'}</td></tr>`; // Display '--' if total is 0
+         });
+         tableHtml += '</tbody></table>';
+
+         // Inject the generated HTML into the container
+         scoreTableContainerEl.innerHTML = tableHtml;
+
+         // Add event listeners to all score input fields
+         scoreTableContainerEl.querySelectorAll('.score-input').forEach(input => {
+             input.addEventListener('input', handleScoreChange); // Update on every input change
+             input.addEventListener('blur', handleScoreBlur); // Save state when focus is lost
+         });
+     }
+
+    /**
+     * Renders the leaderboard table, sorted by cumulative net score.
+     * Highlights the leader and shows Gross, Net, To Par, and individual round scores.
+     */
+    function renderLeaderboard() {
+         // Check if leaderboard elements exist, try to find them if not already assigned (e.g., on first load)
+         if (!leaderboardEl || !courseParInfoEl) {
+             leaderboardEl = document.getElementById('leaderboard');
+             courseParInfoEl = document.getElementById('course-par-info');
+             if (!leaderboardEl || !courseParInfoEl) {
+                 console.warn("Leaderboard elements not found. Cannot render leaderboard.");
+                 return; // Exit if elements still not found
+             }
+         }
+
+         // Display the total course par
+         courseParInfoEl.textContent = `Course Par: ${COURSE_TOTAL_PAR}`;
+
+         // Display a message if no players exist
+         if (players.length === 0) {
+             leaderboardEl.innerHTML = '<p class="text-gray-500 italic">Add players and enter scores to see the leaderboard.</p>';
+             return;
+         }
+
+         // Prepare leaderboard data by calculating totals for each player
+         const leaderboardData = players.map(p => {
+             const cumulativeToPar = calculateCumulativeRelativeToPar(p);
+             return {
+                 ...p, // Include original player data
+                 cumulativeGrossTotal: calculateCumulativeGrossTotal(p),
+                 cumulativeNetTotal: calculateCumulativeNetTotal(p),
+                 cumulativeToPar: cumulativeToPar,
+                 formattedToPar: formatRelativeToPar(p, cumulativeToPar) // Get formatted 'To Par' string
+             };
+         }).sort((a, b) => a.cumulativeNetTotal - b.cumulativeNetTotal); // Sort by Net score (lowest first)
+
+         // Start building the leaderboard table HTML
+         let tableHtml = '<table class="min-w-full divide-y divide-gray-200 border border-gray-300 shadow-sm"><thead class="bg-gray-100"><tr class="text-left text-xs font-medium text-gray-600 uppercase tracking-wider">';
+         // Define table headers
+         tableHtml += '<th scope="col" class="px-4 py-3 text-center">Rank</th>';
+         tableHtml += '<th scope="col" class="px-4 py-3">Player</th>';
+         tableHtml += '<th scope="col" class="px-4 py-3 text-center">HCP</th>';
+         tableHtml += '<th scope="col" class="px-4 py-3 text-center">Gross</th>';
+         tableHtml += '<th scope="col" class="px-4 py-3 text-center font-bold text-blue-700">Net</th>'; // Highlight Net column
+         tableHtml += '<th scope="col" class="px-4 py-3 text-center font-bold">To Par</th>'; // Highlight To Par column
+         for(let r=1; r<=NUM_ROUNDS; r++) { tableHtml += `<th scope="col" class="px-4 py-3 text-center">R${r} Gross</th>`; } // Add columns for each round's gross score
+         tableHtml += '</tr></thead><tbody class="bg-white divide-y divide-gray-200">';
+
+         // Generate table rows for each player
+         leaderboardData.forEach((player, index) => {
+             // Determine text color for 'To Par' based on score
+             const toParClass = player.formattedToPar === '--' ? 'text-gray-500' // Not started
+                                : player.cumulativeToPar === 0 ? 'text-black' // Even par
+                                : player.cumulativeToPar > 0 ? 'text-red-600' // Over par
+                                : 'text-green-600'; // Under par
+
+             // Highlight the leader's row
+             tableHtml += `<tr class="${index === 0 ? 'bg-leaderHighlight' : ''}">`;
+             // Add cells for rank, name, handicap, totals, etc.
+             tableHtml += `<td class="px-4 py-2 whitespace-nowrap text-center font-medium">${index + 1}</td>`; // Rank
+             tableHtml += `<td class="px-4 py-2 whitespace-nowrap font-medium text-gray-900">${player.name}</td>`; // Player Name
+             tableHtml += `<td class="px-4 py-2 whitespace-nowrap text-center">${player.handicap ?? 0}</td>`; // Handicap
+             tableHtml += `<td class="px-4 py-2 whitespace-nowrap text-center">${player.cumulativeGrossTotal || '--'}</td>`; // Gross Total
+             tableHtml += `<td class="px-4 py-2 whitespace-nowrap text-center font-bold text-lg text-blue-600">${player.cumulativeNetTotal || '--'}</td>`; // Net Total (highlighted)
+             tableHtml += `<td class="px-4 py-2 whitespace-nowrap text-center font-bold text-lg ${toParClass}">${player.formattedToPar}</td>`; // To Par (highlighted, colored)
+             // Add cells for each round's gross score
+             for(let r=1; r<=NUM_ROUNDS; r++) {
+                 const roundTotal = calculateRoundTotal(player, r);
+                 tableHtml += `<td class="px-4 py-2 whitespace-nowrap text-center">${roundTotal || '--'}</td>`; // Display '--' if round score is 0
+             }
+             tableHtml += '</tr>';
+         });
+         tableHtml += '</tbody></table>';
+
+         // Inject the generated HTML into the leaderboard container
+         leaderboardEl.innerHTML = tableHtml;
+     }
+
+    /**
+     * Renders the History view, attempting to embed a Google Sheet iframe.
+     * Displays instructions if the URL is invalid or not provided.
+     */
+    function renderHistoryView() {
+         if (!historyContentEl) return; // Safety check
+
+         // Basic validation for the Google Sheet URL format
+         const isValidUrl = GOOGLE_SHEET_URL && typeof GOOGLE_SHEET_URL === 'string' &&
+                            GOOGLE_SHEET_URL.includes("docs.google.com/spreadsheets") &&
+                            GOOGLE_SHEET_URL.includes("/pubhtml");
+
+         if (isValidUrl) {
+             // Embed the Google Sheet using an iframe if the URL seems valid
+             historyContentEl.innerHTML = `<iframe src="${GOOGLE_SHEET_URL}" title="Fox Lake Masters History Google Sheet" class="w-full h-full border-0 rounded-md shadow-sm">Loading Google Sheet...</iframe>`;
+         } else {
+             // Display an informative message if the URL is missing or invalid
+             historyContentEl.innerHTML = `
+                 <div class="bg-yellow-100 border-l-4 border-yellow-500 text-yellow-700 p-4 rounded-md shadow-sm" role="alert">
+                     <p class="font-bold">History Not Available</p>
+                     <p>To view history, please update the <code class="bg-yellow-200 px-1 rounded text-xs">GOOGLE_SHEET_URL</code> constant in the script with your <strong>published</strong> Google Sheet URL.</p>
+                     <p class="mt-2 text-sm">In Google Sheets: File &gt; Share &gt; Publish to web &gt; Select 'Embed' &gt; Copy the URL from the 'src' attribute of the iframe code &gt; Publish.</p>
+                     <p class="mt-1 text-xs">Ensure the URL ends with <code class="bg-yellow-200 px-1 rounded text-xs">/pubhtml</code>.</p>
+                 </div>`;
+         }
+     }
+
+    // --- Event Handlers ---
+
+    /**
+     * Handles the click event on the initial "Welcome" button.
+     * Navigates from the launch screen to the main home view (leaderboard).
+     */
+    function handleStartClick() {
+         // Changed target view from 'tracker' to 'home'
+         navigateTo('home');
+     }
+
+    /**
+     * Handles adding a new player from the input fields.
+     * Validates input, adds the player to the state, saves, and re-renders relevant parts.
+     */
+    function handleAddPlayer() {
+         if (!newPlayerNameInputEl || !newPlayerHandicapInputEl) return; // Safety check
+
+         const name = newPlayerNameInputEl.value.trim();
+         const handicapStr = newPlayerHandicapInputEl.value.trim();
+         let handicap = 0; // Default handicap
+
+         // Parse handicap only if the input is not empty
+         if (handicapStr !== '') {
+              const parsedHandicap = parseInt(handicapStr, 10);
+              if (!isNaN(parsedHandicap)) { // Use parsed value only if it's a valid number
+                  handicap = parsedHandicap;
+              }
+              // If parsing fails (e.g., text entered), handicap remains 0
+         }
+
+         // Validate player name
+         if (!name) {
+             console.warn("Player name cannot be empty.");
+             newPlayerNameInputEl.focus(); // Focus the input for correction
+             // Add temporary visual feedback for error
+             newPlayerNameInputEl.classList.add('border-red-500');
+             setTimeout(() => newPlayerNameInputEl.classList.remove('border-red-500'), 2000);
+             return; // Stop execution
+         }
+
+         // Check for duplicate player names (case-insensitive)
+         if (players.some(p => p.name.toLowerCase() === name.toLowerCase())) {
+             console.warn(`Player "${name}" already exists.`);
+             newPlayerNameInputEl.select(); // Select existing text for easy replacement
+             // Add temporary visual feedback for warning
+             newPlayerNameInputEl.classList.add('border-yellow-500');
+             setTimeout(() => newPlayerNameInputEl.classList.remove('border-yellow-500'), 2000);
+             return; // Stop execution
+         }
+
+         // Create new player object
+         const newId = nextPlayerIdCounter++; // Get unique ID and increment counter
+         const newPlayer = { id: newId, name: name, handicap: handicap, scores: {} }; // Initialize scores object
+
+         // Add player to state, clear inputs, save, and re-render
+         players.push(newPlayer);
+         newPlayerNameInputEl.value = '';
+         newPlayerHandicapInputEl.value = '';
+         newPlayerNameInputEl.focus(); // Set focus back to name input for next entry
+         saveState(); // Persist changes
+         renderPlayerList(); // Update player list display
+         renderScoreTable(); // Update score table (adds new row)
+         renderLeaderboard(); // Update leaderboard
+     }
+
+    /**
+     * Handles removing a player when the 'x' button next to their name is clicked.
+     * Confirms the action before deleting the player and their scores.
+     * @param {Event} event - The click event object.
+     */
+    function handleRemovePlayer(event) {
+         const playerId = parseInt(event.target.dataset.playerId, 10); // Get player ID from data attribute
+         const playerToRemove = players.find(p => p.id === playerId);
+
+         if (playerToRemove) {
+             // Confirmation dialog to prevent accidental deletion
+             if (confirm(`Are you sure you want to remove ${playerToRemove.name}? This will delete all their scores and cannot be undone.`)) {
+                 // Filter out the player to remove
+                 players = players.filter(p => p.id !== playerId);
+                 saveState(); // Persist changes
+                 // Re-render affected components
+                 renderPlayerList();
+                 renderScoreTable();
+                 renderLeaderboard();
+             }
+             // If confirm is cancelled, do nothing
+         } else {
+             console.warn("Could not find player to remove with ID:", playerId);
+         }
+     }
+
+    /**
+     * Handles changes in the score input fields as the user types.
+     * Updates the player's score in the state and re-renders the score table and leaderboard.
+     * Provides visual feedback for invalid input.
+     * @param {Event} event - The input event object.
+     */
+    function handleScoreChange(event) {
+         const input = event.target;
+         const playerId = parseInt(input.dataset.playerId, 10);
+         const roundNum = parseInt(input.dataset.round, 10); // Get round from input data attribute
+         const holeNum = parseInt(input.dataset.hole, 10);
+         const scoreStr = input.value;
+
+         // Handle empty input or parse the score
+         const score = scoreStr === '' ? null : parseInt(scoreStr, 10);
+
+         // Basic validation: check if score is a positive integer or empty
+         if (scoreStr !== '' && (isNaN(score) || score < 0)) {
+             // Add visual feedback for invalid input (e.g., non-numeric, negative)
+             input.classList.add('border-red-500', 'ring-red-500');
+             // Don't update state with invalid data, but allow user to see the error
+             return;
+         } else {
+             // Remove error styling if input becomes valid
+             input.classList.remove('border-red-500', 'ring-red-500');
+         }
+
+         // Find the player and update their score
+         const player = players.find(p => p.id === playerId);
+         if (player) {
+             const roundKey = `round${roundNum}`; // Use the round number from the input
+             const holeKey = `hole${holeNum}`;
+
+             // Ensure score structure exists
+             if (!player.scores) player.scores = {};
+             if (!player.scores[roundKey]) player.scores[roundKey] = {};
+
+             // Update the score (null if empty, number otherwise)
+             player.scores[roundKey][holeKey] = score;
+
+             // Re-render the table to update totals (don't save state on every keystroke)
+             renderScoreTable();
+             // Optionally update leaderboard live (can be performance intensive with many players/holes)
+             renderLeaderboard();
+         } else {
+             console.warn("Score changed for non-existent player ID:", playerId);
+         }
+     }
+
+    /**
+     * Handles the blur event (when focus leaves a score input).
+     * Finalizes the score update, corrects invalid input back to previous state, and saves the state.
+     * @param {Event} event - The blur event object.
+     */
+    function handleScoreBlur(event) {
+         const input = event.target;
+         const playerId = parseInt(input.dataset.playerId, 10);
+         const roundNum = parseInt(input.dataset.round, 10);
+         const holeNum = parseInt(input.dataset.hole, 10);
+         const scoreStr = input.value;
+         let score = scoreStr === '' ? null : parseInt(scoreStr, 10);
+
+         // Final validation on blur: If input is invalid (non-numeric, negative)
+         if (scoreStr !== '' && (isNaN(score) || score < 0)) {
+             console.warn(`Correcting invalid score on blur: '${scoreStr}' for Player ${playerId}, Round ${roundNum}, Hole ${holeNum}`);
+             const player = players.find(p => p.id === playerId);
+             const roundKey = `round${roundNum}`;
+             const holeKey = `hole${holeNum}`;
+             // Revert input value to the previously saved score (or empty if none)
+             const prevScore = player?.scores?.[roundKey]?.[holeKey] ?? null;
+             input.value = prevScore === null ? '' : prevScore;
+             score = prevScore; // Ensure the state reflects the reverted value
+             input.classList.remove('border-red-500', 'ring-red-500'); // Remove error style
+
+             // Update the state if player and score structure exists
+             if (player && player.scores?.[roundKey]) {
+                 player.scores[roundKey][holeKey] = score;
+             }
+         } else {
+             // If valid, just ensure error style is removed
+             input.classList.remove('border-red-500', 'ring-red-500');
+             // State was already updated in handleScoreChange, no need to update again unless correcting
+         }
+
+         // Save the state after any potential correction or valid input is finalized
+         saveState();
+         // Re-render might be needed if value was corrected, but often handled by handleScoreChange
+         // renderScoreTable(); // Uncomment if totals need explicit update after correction
+         // renderLeaderboard(); // Uncomment if leaderboard needs explicit update after correction
+     }
+
+    /**
+     * Handles changing the current round when a round tab is clicked.
+     * Updates the state and re-renders the tabs and score table.
+     * @param {Event} event - The click event object.
+     */
+    function handleRoundChange(event) {
+         const newRound = parseInt(event.target.dataset.round, 10);
+         // Check if the new round is valid and different from the current one
+         if (!isNaN(newRound) && newRound >= 1 && newRound <= NUM_ROUNDS && newRound !== currentRound) {
+             currentRound = newRound; // Update the global state
+             // Re-render components affected by the round change
+             renderRoundTabs(); // Highlight the new active tab
+             renderScoreTable(); // Display scores for the new round
+         }
+     }
+
+
+    // --- Initialization ---
+
+    /**
+     * Initializes the application.
+     * Gets references to DOM elements, loads saved state, attaches event listeners,
+     * and performs the initial navigation.
+     */
+    function initializeApp() {
+        // Get references to all necessary DOM elements
+        launchScreenEl = document.getElementById('launch-screen');
+        mainAppAreaEl = document.getElementById('main-app-area');
+        navigationBarEl = document.getElementById('navigation-bar');
+        navButtonsEl = document.getElementById('nav-buttons');
+        homeViewEl = document.getElementById('home-view');
+        trackerViewEl = document.getElementById('tracker-view'); // Scores view
+        historyViewEl = document.getElementById('history-view');
+        mediaViewEl = document.getElementById('media-view'); // Media view
+        playerListEl = document.getElementById('player-list');
+        newPlayerNameInputEl = document.getElementById('new-player-name');
+        newPlayerHandicapInputEl = document.getElementById('new-player-handicap');
+        addPlayerBtnEl = document.getElementById('add-player-btn');
+        roundTabsEl = document.getElementById('round-tabs');
+        currentRoundDisplayEl = document.getElementById('current-round-display');
+        scoreTableContainerEl = document.getElementById('score-table-container');
+        leaderboardEl = document.getElementById('leaderboard');
+        courseParInfoEl = document.getElementById('course-par-info');
+        historyContentEl = document.getElementById('history-content');
+        // Get references for new Home view elements
+        currentDateEl = document.getElementById('current-date');
+        currentWeatherInfoEl = document.getElementById('current-weather-info');
+        currentWeatherIconEl = document.getElementById('current-weather-icon');
+
+        const startButtonEl = document.getElementById('start-button');
+
+        // --- Critical Element Check ---
+        // Verify that all essential elements were found in the HTML
+        const essentialElements = {
+            'launch-screen': launchScreenEl, 'main-app-area': mainAppAreaEl,
+            'navigation-bar': navigationBarEl, 'nav-buttons': navButtonsEl,
+            'home-view': homeViewEl, 'tracker-view': trackerViewEl, 'history-view': historyViewEl,
+            'media-view': mediaViewEl, // Added media view check
+            'player-list': playerListEl, 'new-player-name': newPlayerNameInputEl,
+            'new-player-handicap': newPlayerHandicapInputEl, 'add-player-btn': addPlayerBtnEl,
+            'round-tabs': roundTabsEl, 'current-round-display': currentRoundDisplayEl,
+            'score-table-container': scoreTableContainerEl, 'leaderboard': leaderboardEl,
+            'course-par-info': courseParInfoEl, 'history-content': historyContentEl,
+            'start-button': startButtonEl,
+            'current-date': currentDateEl, 'current-weather-info': currentWeatherInfoEl,
+            'current-weather-icon': currentWeatherIconEl
+        };
+        const missingElements = Object.entries(essentialElements).filter(([id, el]) => !el).map(([id]) => id);
+
+        if (missingElements.length > 0) {
+            // If critical elements are missing, log an error and stop initialization
+            console.error("Initialization failed: Could not find essential DOM elements with IDs:", missingElements.join(', '));
+            // Display an error message to the user instead of a broken app
+            document.body.innerHTML = `<div class="p-4 m-4 bg-red-100 border border-red-400 text-red-700 rounded"><strong>Error:</strong> Application could not start correctly. Required HTML elements are missing (check console for IDs: ${missingElements.join(', ')}). Please check the HTML structure or report this issue.</div>`;
+            return; // Halt execution
+        }
+        // --- End Critical Element Check ---
+
+
+        // Load any previously saved player data and settings
+        loadState();
+
+        // Attach primary event listeners
+        startButtonEl.addEventListener('click', handleStartClick);
+        addPlayerBtnEl.addEventListener('click', handleAddPlayer);
+
+        // Add 'Enter' key listener for player name input for quick adding
+        newPlayerNameInputEl.addEventListener('keypress', (e) => {
+            if (e.key === 'Enter') {
+                e.preventDefault(); // Prevent default form submission behavior
+                handleAddPlayer();
+            }
+        });
+        // Add 'Enter' key listener for handicap input
+        newPlayerHandicapInputEl.addEventListener('keypress', (e) => {
+            if (e.key === 'Enter') {
+                e.preventDefault();
+                handleAddPlayer();
+            }
+        });
+
+        // Set the initial view (starts on the launch screen)
+        navigateTo('launch');
+
+        // Render navigation buttons initially (they are hidden until main app area is shown)
+        renderNavButtons();
+    }
+
+    // --- Run Initialization on Window Load ---
+    // Ensures the DOM is fully loaded before trying to access elements and run scripts.
+    window.addEventListener('load', initializeApp);
+
+</script>
+
+</body>
+</html>
